@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
+const authRouter = require('./routers/authRouter')
 
 
 
@@ -15,6 +16,7 @@ app.use(helmet());
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use('/api/auth',authRouter)
 
 
 mongoose
@@ -24,12 +26,7 @@ mongoose
     })
     .catch(err=>{
         console.log(err)
-    })
-
-
-app.get('/', (req, res)=>{
-    res.json({message: "Welcome to project one"})
-});
+    });
 
 
 app.listen(PORT, ()=>{
