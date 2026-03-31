@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { signupSchema, signinSchema } = require('../middlewares/validator.js');
+const { signupSchema, signinSchema, acceptCodeSchema } = require('../middlewares/validator.js');
 const User = require('../models/usersModel.js');
 const { doHash, doHashValidation, hmacProcess } = require('../utils/hashing.js');
 const transport = require('../middlewares/sendMail.js');
@@ -195,42 +195,71 @@ exports.verifyVerificationCode = async (req, res) => {
     const { email, code } = req.body;
 
     try {
-        const user = await User.findOne({ email });
+        const { error, value } = acceptCodeSchema.validate({ email, code });
 
-        if (!user) {
-            return res.status(404).json({
+        if(error){
+            return res.status(401).json({
                 success: false,
-                message: "User not found"
+                message: error.details[0].message
             });
         }
 
-        const hashedCode = hmacProcess(
-            code,
+        const codeValue = code.toString();
+        const existingUser = await User.findOne({email}).select("+verificationCode +verificationCodeValidation");
+
+        if(!existingUser){
+            return res.status(404).json({
+                success:false,
+                message: "User not found!"
+            });
+        }
+
+        if(existingUser.verified){
+            return res.status(400).json({
+                success:false,
+                message: "You are already verified!"
+            });
+        }
+
+        if(!existingUser.verificationCode || !existingUser.verificationCodeValidation){
+            return res.status(400).json({
+                success: false,
+                message: "Something went wrong, please request a new code"
+            });
+        }
+
+        if(Date.now()-existingUser.verificationCodeValidation > 5 * 60 * 1000){
+            return res.status(400).json({
+                success:false,
+                message: "Code expired, please request a new one"
+            });
+
+        }
+
+        const hashedCodeValue = hmacProcess(
+            codeValue,
             process.env.HMAC_VERIFICATION_CODE_SECRET
-        );
+        )
 
-        if (
-            hashedCode === user.verificationCode &&
-            Date.now() < user.verificationCodeValidation
-        ) {
-            user.verified = true;
-            user.verificationCode = undefined;
-            user.verificationCodeValidation = undefined;
+        if(hashedCodeValue === existingUser.verificationCode){
+            existingUser.verified = true;
+            existingUser.verificationCode = undefined;
+            existingUser.verificationCodeValidation = undefined;
 
-            await user.save();
-
-            return res.status(200).json({
-                success: true,
-                message: "Account verified successfully!"
-            });
+            await existingUser.save();
+            return res
+                .status(200)
+                .json({
+                    success: true,
+                    message: "Your account has been verified successfully"
+                });
         }
-
-        return res.status(400).json({
-            success: false,
-            message: "Invalid or expired code"
-        });
-
-
+        return res
+            .status(400)
+            .json({
+                success: false,
+                message: "Invalid code, please try again"
+            });
 
     } catch (err) {
         console.log(err);
