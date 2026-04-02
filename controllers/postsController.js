@@ -104,3 +104,72 @@ exports.createPost = async(req, res)=>{
     }
 };
 
+exports.updatePost = async (req, res) => {
+    console.log("updatePost controller is working!");
+    const { title, description } = req.body;
+    const { id } = req.params;
+
+    try {
+
+        const { error, value } = createPostSchema.validate({ title, description,userId: req.user.userId });
+        if (error) {
+            return res.status(400).json({ 
+                message: error.details[0].message
+            });
+        }   
+
+        const result = await Post.findOneAndUpdate(
+            { _id: id, userId: req.user.userId }, 
+            { title, description }, 
+            { returnDocument: 'after' }
+        );
+
+        if (!result) {
+            return res.status(404).json({
+                success: false,
+                message: 'Post not found or you are not authorized to update it!'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Post updated successfully!',
+            data: result
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            success: false,
+            message: "Server error!"
+        });
+    }
+};
+
+exports.deletePost = async (req, res) => {
+    console.log("deletePost controller is working!");
+    const { id } = req.params;
+
+    try {
+        
+        const result = await Post.findOneAndDelete({ _id: id, userId: req.user.userId });
+        
+        if (!result) {
+            return res.status(404).json({
+                success: false,
+                message: 'Post not found or you are not authorized to delete it!'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Post deleted successfully!',
+            data: result
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            success: false,
+            message: "Server error!"
+        });
+    }
+};
